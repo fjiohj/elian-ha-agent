@@ -1,0 +1,14 @@
+cloud_url: wss://elianiot.com/api/v1/agent/connect
+
+# 首次配对使用，成功后程序会清空并保存 agent_id/agent_secret。
+pair_code: ""
+agent_id: 0
+agent_secret: ""
+
+ha_url: http://127.0.0.1:8123
+ha_token: ""
+
+state_dir: ./data
+heartbeat_seconds: 30
+reconnect_min_seconds: 2
+reconnect_max_seconds: 60

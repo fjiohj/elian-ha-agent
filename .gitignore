@@ -1,0 +1,7 @@
+/data/
+/.release/
+*.log
+agent-state.yaml
+.env
+/elian-agent
+/elian-agent.exe
