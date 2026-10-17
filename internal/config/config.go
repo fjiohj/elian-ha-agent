@@ -165,12 +165,17 @@ func (c *Config) LoadState() error {
 }
 
 func (c *Config) SaveState() error {
+	return c.SaveIdentity(c.AgentID, c.AgentSecret)
+}
+
+// SaveIdentity 先持久化身份，再更新内存配置；写盘失败时不会留下可用的内存身份。
+func (c *Config) SaveIdentity(agentID uint64, agentSecret string) error {
 	if err := os.MkdirAll(c.StateDir, 0o700); err != nil {
 		return fmt.Errorf("创建状态目录失败: %w", err)
 	}
 	raw, err := yaml.Marshal(State{
-		AgentID:     c.AgentID,
-		AgentSecret: c.AgentSecret,
+		AgentID:     agentID,
+		AgentSecret: agentSecret,
 	})
 	if err != nil {
 		return err

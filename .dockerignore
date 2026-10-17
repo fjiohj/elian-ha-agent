@@ -1,0 +1,7 @@
+.git
+.gitignore
+.release
+.idea
+data
+*.exe
+*.log

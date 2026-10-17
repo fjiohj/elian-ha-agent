@@ -15,7 +15,12 @@ RUN CGO_ENABLED=0 GOOS=linux \
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
-RUN addgroup -S elian && adduser -S -G elian elian
+RUN addgroup -S elian \
+    && adduser -S -G elian elian \
+    && mkdir -p /data \
+    && chown -R elian:elian /data
 COPY --from=builder /out/elian-agent /usr/local/bin/elian-agent
+ENV ELIAN_STATE_DIR=/data
+VOLUME ["/data"]
 USER elian
 ENTRYPOINT ["/usr/local/bin/elian-agent"]

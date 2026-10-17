@@ -147,12 +147,12 @@ func (c *Client) authorizeDevice(ctx context.Context) error {
 				if token.AgentID == 0 || token.AgentSecret == "" {
 					return errors.New("设备授权结果缺少 agent_id 或 agent_secret")
 				}
+				if err := c.cfg.SaveIdentity(token.AgentID, token.AgentSecret); err != nil {
+					return err
+				}
 				c.cfg.AgentID = token.AgentID
 				c.cfg.AgentSecret = token.AgentSecret
 				c.cfg.PairCode = ""
-				if err := c.cfg.SaveState(); err != nil {
-					return err
-				}
 				log.Printf("Agent 设备授权成功，agent_id=%d", c.cfg.AgentID)
 				return nil
 			default:
@@ -288,12 +288,12 @@ func (c *Client) runOnce(ctx context.Context) error {
 			if message.AgentID == 0 || message.AgentSecret == "" {
 				return errors.New("云端配对响应缺少 agent_id 或 agent_secret")
 			}
+			if err := c.cfg.SaveIdentity(message.AgentID, message.AgentSecret); err != nil {
+				return err
+			}
 			c.cfg.AgentID = message.AgentID
 			c.cfg.AgentSecret = message.AgentSecret
 			c.cfg.PairCode = ""
-			if err := c.cfg.SaveState(); err != nil {
-				return err
-			}
 			log.Printf("Agent 配对成功，agent_id=%d", c.cfg.AgentID)
 			startBackground()
 		case protocol.TypeAuthOK:
