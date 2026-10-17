@@ -4,14 +4,22 @@ set -eu
 OPTIONS=/data/options.json
 CONFIG=/data/agent.yaml
 
-CLOUD_URL=$(jq -r '.cloud_url // "wss://elianiot.com/api/v1/agent/connect"' "$OPTIONS")
-PAIR_CODE=$(jq -r '.pair_code // ""' "$OPTIONS")
-HA_URL=$(jq -r '.ha_url // "http://supervisor/core"' "$OPTIONS")
-HA_TOKEN=$(jq -r '.ha_token // ""' "$OPTIONS")
-HEARTBEAT=$(jq -r '.heartbeat_seconds // 30' "$OPTIONS")
+# Add-on 模式下无需用户填写云端地址、HA 地址或 HA Token：
+# - 云端地址固定为生产 Agent Hub；
+# - HA 地址通过 Supervisor 内网 API；
+# - HA Token 使用 Supervisor 自动注入的 SUPERVISOR_TOKEN。
+CLOUD_URL="${ELIAN_CLOUD_URL:-wss://elianiot.com/api/v1/agent/connect}"
+PAIR_CODE=""
+if [ -f "$OPTIONS" ]; then
+  PAIR_CODE=$(jq -r '.pair_code // ""' "$OPTIONS")
+fi
+HA_URL="${ELIAN_HA_URL:-http://supervisor/core}"
+HA_TOKEN="${SUPERVISOR_TOKEN:-}"
+HEARTBEAT=30
 
-if [ -z "$HA_TOKEN" ] && [ -n "${SUPERVISOR_TOKEN:-}" ]; then
-  HA_TOKEN="$SUPERVISOR_TOKEN"
+if [ -z "$HA_TOKEN" ]; then
+  echo "ERROR: 未获取到 SUPERVISOR_TOKEN，请确认这是 Home Assistant Add-on 运行环境" >&2
+  exit 1
 fi
 
 jq -n \

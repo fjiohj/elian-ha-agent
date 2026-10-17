@@ -5,16 +5,18 @@ import "encoding/json"
 const Version = 1
 
 const (
-	TypePair     = "pair"
-	TypePaired   = "paired"
-	TypeAuth     = "auth"
-	TypeAuthOK   = "auth_ok"
-	TypeRequest  = "request"
-	TypeResponse = "response"
-	TypeEvent    = "event"
-	TypePing     = "ping"
-	TypePong     = "pong"
-	TypeError    = "error"
+	TypePair      = "pair"
+	TypePaired    = "paired"
+	TypeAuth      = "auth"
+	TypeAuthOK    = "auth_ok"
+	TypeRequest   = "request"
+	TypeResponse  = "response"
+	TypeWSCommand = "ws_command"
+	TypeWSResult  = "ws_result"
+	TypeEvent     = "event"
+	TypePing      = "ping"
+	TypePong      = "pong"
+	TypeError     = "error"
 )
 
 // Message 是云端与 Agent 之间统一的双向消息。
@@ -39,6 +41,9 @@ type Message struct {
 	Method string          `json:"method,omitempty"`
 	Path   string          `json:"path,omitempty"`
 	Body   json.RawMessage `json:"body,omitempty"`
+
+	// WSCommand 只允许执行 Agent 侧白名单内的 HA WebSocket 命令。
+	Command string `json:"command,omitempty"`
 
 	// Response 字段。
 	Status int             `json:"status,omitempty"`

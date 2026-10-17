@@ -1,6 +1,7 @@
 cloud_url: wss://elianiot.com/api/v1/agent/connect
 
-# 首次配对使用，成功后程序会清空并保存 agent_id/agent_secret。
+# 留空时使用零配置设备授权：启动后日志会显示授权链接和短码。
+# 也可以填写旧的 AGENT-XXXX-XXXX 绑定码进行兼容配对。
 pair_code: ""
 agent_id: 0
 agent_secret: ""

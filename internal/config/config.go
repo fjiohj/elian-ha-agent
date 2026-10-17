@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -62,6 +61,9 @@ func Load(path string) (*Config, error) {
 	if cfg.HeartbeatSeconds <= 0 {
 		cfg.HeartbeatSeconds = 30
 	}
+	if cfg.HeartbeatSeconds < 5 || cfg.HeartbeatSeconds > 60 {
+		return nil, errors.New("heartbeat_seconds 必须在 5~60 秒之间")
+	}
 	if cfg.ReconnectMin <= 0 {
 		cfg.ReconnectMin = 2
 	}
@@ -90,9 +92,8 @@ func (c *Config) Validate() error {
 	if c.HAToken == "" {
 		return errors.New("ha_token 不能为空")
 	}
-	if c.AgentID == 0 && strings.TrimSpace(c.PairCode) == "" {
-		return errors.New("首次启动必须提供 pair_code，或提供已保存的 agent_id/agent_secret")
-	}
+	// 没有 pair_code 且没有长期身份时，Agent 会进入设备授权流程：
+	// 云端返回短码和授权链接，用户登录平台确认后自动取得身份。
 	if (c.AgentID == 0) != (c.AgentSecret == "") {
 		return errors.New("agent_id 和 agent_secret 必须同时提供")
 	}

@@ -14,17 +14,3 @@ boot: auto
 init: false
 homeassistant_api: true
 host_network: false
-
-options:
-  cloud_url: "wss://elianiot.com/api/v1/agent/connect"
-  pair_code: ""
-  ha_url: "http://supervisor/core"
-  ha_token: ""
-  heartbeat_seconds: 30
-
-schema:
-  cloud_url: url
-  pair_code: str
-  ha_url: str
-  ha_token: password
-  heartbeat_seconds: int

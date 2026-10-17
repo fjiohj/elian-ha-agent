@@ -63,3 +63,31 @@ func TestEnvironmentOnlyConfigWithoutFile(t *testing.T) {
 		t.Fatalf("环境变量模式失败: %+v", cfg)
 	}
 }
+
+func TestHeartbeatRange(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent.yaml")
+	raw := []byte(`
+cloud_url: wss://cloud.example/agent
+pair_code: PAIR
+ha_url: http://ha.example:8123
+ha_token: token
+state_dir: ` + filepath.ToSlash(dir) + `
+heartbeat_seconds: 120
+`)
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("超出范围的心跳间隔应被拒绝")
+	}
+}
+
+func TestDeviceAuthorizationNeedsNoPairCode(t *testing.T) {
+	cfg := Default()
+	cfg.StateDir = t.TempDir()
+	cfg.HAToken = "token"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("无 pair_code 时应允许进入设备授权流程: %v", err)
+	}
+}

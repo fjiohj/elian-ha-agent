@@ -1,5 +1,6 @@
 /data/
 /.release/
+/.idea/
 *.log
 agent-state.yaml
 .env

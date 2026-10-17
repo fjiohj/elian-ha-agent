@@ -1,11 +1,16 @@
 package cloud
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"math/rand"
+	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +38,29 @@ func (c *Client) Run(ctx context.Context) error {
 	backoff := time.Duration(c.cfg.ReconnectMin) * time.Second
 	maxBackoff := time.Duration(c.cfg.ReconnectMax) * time.Second
 	for {
+		if c.cfg.AgentID == 0 && strings.TrimSpace(c.cfg.PairCode) == "" {
+			if err := c.authorizeDevice(ctx); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				log.Printf("设备授权失败: %v", err)
+				jitter := time.Duration(rand.Int63n(int64(backoff/2 + 1)))
+				wait := backoff + jitter
+				log.Printf("%s 后重试设备授权", wait.Round(time.Second))
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(wait):
+				}
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+				continue
+			}
+			backoff = time.Duration(c.cfg.ReconnectMin) * time.Second
+		}
+
 		err := c.runOnce(ctx)
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -53,6 +81,141 @@ func (c *Client) Run(ctx context.Context) error {
 			backoff = maxBackoff
 		}
 	}
+}
+
+type deviceCodeData struct {
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	Interval                int    `json:"interval"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+}
+
+type deviceTokenData struct {
+	Status      string `json:"status"`
+	AgentID     uint64 `json:"agent_id"`
+	AgentSecret string `json:"agent_secret"`
+}
+
+type cloudEnvelope struct {
+	Code    json.RawMessage `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data"`
+}
+
+// authorizeDevice 实现 OAuth Device Authorization：
+// Agent 无配置启动 → 展示短码和授权链接 → 用户登录平台确认 → Agent 自动取得长期身份。
+func (c *Client) authorizeDevice(ctx context.Context) error {
+	var start deviceCodeData
+	if err := c.postJSON(ctx, "device-code", map[string]string{
+		"agent_version": version.Version,
+	}, &start); err != nil {
+		return err
+	}
+	if start.DeviceCode == "" || start.UserCode == "" {
+		return errors.New("云端未返回设备授权信息")
+	}
+	interval := time.Duration(start.Interval) * time.Second
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+	link := start.VerificationURIComplete
+	if link == "" {
+		link = start.VerificationURI
+	}
+	log.Printf("请在浏览器打开: %s", link)
+	log.Printf("如果页面要求输入授权码，请输入: %s", start.UserCode)
+	log.Printf("等待用户在 elianiot 平台确认授权...")
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			var token deviceTokenData
+			if err := c.postJSON(ctx, "device-token", map[string]string{
+				"device_code": start.DeviceCode,
+			}, &token); err != nil {
+				return err
+			}
+			switch token.Status {
+			case "pending":
+				continue
+			case "authorized":
+				if token.AgentID == 0 || token.AgentSecret == "" {
+					return errors.New("设备授权结果缺少 agent_id 或 agent_secret")
+				}
+				c.cfg.AgentID = token.AgentID
+				c.cfg.AgentSecret = token.AgentSecret
+				c.cfg.PairCode = ""
+				if err := c.cfg.SaveState(); err != nil {
+					return err
+				}
+				log.Printf("Agent 设备授权成功，agent_id=%d", c.cfg.AgentID)
+				return nil
+			default:
+				return errors.New("云端返回了未知设备授权状态")
+			}
+		}
+	}
+}
+
+func (c *Client) postJSON(ctx context.Context, action string, payload, target interface{}) error {
+	endpoint, err := c.deviceEndpoint(action)
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	client := &http.Client{Timeout: 20 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	var envelope cloudEnvelope
+	_ = json.Unmarshal(body, &envelope)
+	if resp.StatusCode >= http.StatusBadRequest ||
+		strings.TrimSpace(string(envelope.Code)) != "0" {
+		if envelope.Message != "" {
+			return errors.New(envelope.Message)
+		}
+		return errors.New("云端设备授权接口返回错误")
+	}
+	if len(envelope.Data) == 0 || string(envelope.Data) == "null" {
+		return errors.New("云端设备授权响应缺少数据")
+	}
+	return json.Unmarshal(envelope.Data, target)
+}
+
+func (c *Client) deviceEndpoint(action string) (string, error) {
+	u, err := url.Parse(c.cfg.CloudURL)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "wss" {
+		u.Scheme = "https"
+	} else {
+		u.Scheme = "http"
+	}
+	u.Path = strings.TrimSuffix(u.Path, "/connect") + "/" + action
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String(), nil
 }
 
 func (c *Client) runOnce(ctx context.Context) error {
@@ -138,6 +301,8 @@ func (c *Client) runOnce(ctx context.Context) error {
 			startBackground()
 		case protocol.TypeRequest:
 			go c.handleRequest(streamCtx, conn, message)
+		case protocol.TypeWSCommand:
+			go c.handleWSCommand(streamCtx, conn, message)
 		case protocol.TypePing:
 			_ = c.write(conn, protocol.Message{
 				Type: protocol.TypePong,
@@ -177,6 +342,28 @@ func (c *Client) handleRequest(ctx context.Context, conn *websocket.Conn, messag
 	}
 	if err := c.write(conn, response); err != nil {
 		log.Printf("发送 HA 代理响应失败: %v", err)
+	}
+}
+
+func (c *Client) handleWSCommand(ctx context.Context, conn *websocket.Conn, message protocol.Message) {
+	if message.ID == "" || message.Command == "" {
+		return
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	data, err := c.ha.WSCommand(reqCtx, message.Command)
+	response := protocol.Message{
+		Type: protocol.TypeWSResult,
+		ID:   message.ID,
+	}
+	if err != nil {
+		response.Error = err.Error()
+	} else {
+		response.Data = data
+	}
+	if err := c.write(conn, response); err != nil {
+		log.Printf("发送 HA WebSocket 命令结果失败: %v", err)
 	}
 }
 
