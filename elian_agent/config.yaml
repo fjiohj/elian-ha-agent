@@ -1,5 +1,5 @@
 name: elian HA Agent
-version: "0.1.0"
+version: "0.1.1"
 slug: elian_agent
 description: 将本地 Home Assistant 安全连接到 elianiot 云平台
 url: https://elianiot.com

@@ -1,14 +1,14 @@
 ARG BUILD_FROM
 FROM golang:1.23-alpine AS builder
 
-ARG ELIAN_AGENT_REF=main
+ARG ELIAN_AGENT_REF=v0.1.1
 RUN apk add --no-cache ca-certificates git
 RUN git clone --depth 1 --branch "${ELIAN_AGENT_REF}" \
     https://github.com/fjiohj/elian-ha-agent.git /src
 WORKDIR /src
 RUN go mod download
-ARG VERSION=dev
-ARG COMMIT=unknown
+ARG VERSION=0.1.1
+ARG COMMIT=v0.1.1
 ARG BUILD_DATE=
 RUN CGO_ENABLED=0 GOOS=linux \
     go build -trimpath \
