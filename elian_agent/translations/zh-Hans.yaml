@@ -1,0 +1,4 @@
+configuration:
+  cloud_url:
+    name: 云端地址（高级）
+    description: 默认使用 elianiot 生产环境。只有本地或私有化部署时才需要修改。

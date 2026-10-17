@@ -1,0 +1,4 @@
+configuration:
+  cloud_url:
+    name: Cloud URL (advanced)
+    description: Uses the elianiot production environment by default. Change it only for local or self-hosted deployments.

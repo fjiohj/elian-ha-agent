@@ -8,9 +8,10 @@ CONFIG=/data/agent.yaml
 # - 云端地址固定为生产 Agent Hub；
 # - HA 地址通过 Supervisor 内网 API；
 # - HA Token 使用 Supervisor 自动注入的 SUPERVISOR_TOKEN。
-CLOUD_URL="${ELIAN_CLOUD_URL:-wss://elianiot.com/api/v1/agent/connect}"
+CLOUD_URL="wss://elianiot.com/api/v1/agent/connect"
 PAIR_CODE=""
 if [ -f "$OPTIONS" ]; then
+  CLOUD_URL=$(jq -r '.cloud_url // "wss://elianiot.com/api/v1/agent/connect"' "$OPTIONS")
   PAIR_CODE=$(jq -r '.pair_code // ""' "$OPTIONS")
 fi
 HA_URL="${ELIAN_HA_URL:-http://supervisor/core}"
