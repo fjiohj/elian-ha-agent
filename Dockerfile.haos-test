@@ -1,0 +1,2 @@
+FROM scratch
+COPY haos_generic-x86-64-18.3.img.xz /haos.img.xz

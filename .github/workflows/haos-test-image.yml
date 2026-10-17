@@ -1,0 +1,33 @@
+name: haos-test-image
+
+on:
+  push:
+    branches:
+      - codex/haos-test-artifact
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official HAOS image
+        run: |
+          curl -L --fail --retry 3 \
+            -o haos_generic-x86-64-18.3.img.xz \
+            https://github.com/home-assistant/operating-system/releases/download/18.3/haos_generic-x86-64-18.3.img.xz
+          ls -lh haos_generic-x86-64-18.3.img.xz
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push temporary HAOS image
+        run: |
+          docker build -f Dockerfile.haos-test \
+            -t ghcr.io/${{ github.repository_owner }}/haos-test:18.3 \
+            .
+          docker push ghcr.io/${{ github.repository_owner }}/haos-test:18.3
